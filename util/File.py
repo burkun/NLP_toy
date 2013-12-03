@@ -1,4 +1,4 @@
-#encode="utf-8"
+# coding=utf-8
 """
 test
 """
@@ -6,7 +6,7 @@ import  os
 import codecs
 import re
 import DataClass
-            
+import gzip            
 class StrHelper:
 
     """
@@ -15,11 +15,17 @@ class StrHelper:
     _RemoveLinkesPattern = re.compile(r"((//<a|<a).*</a>|</a>\r\n|</a>|\r\n)", re.I)
     _RemoveFaceImage = re.compile(r"\[.*\]",re.I)
     _DocFinder = re.compile(r"<DOC.*?>.*?</DOC>",re.I|re.M|re.U|re.DOTALL)
+    _DocHiperLink = re.compile("http://[a-zA-Z0-9]+\.[a-zA-Z]+/[a-zA-Z0-9]+")
+    
     _DocHeader = re.compile(r'.*<DOC id="(.*)" type="(.*)"',re.I|re.M|re.U|re.DOTALL)
     _DocHeadLine = re.compile(r'.*<HEADLINE>(.*?)</HEADLINE>.*',re.I|re.M|re.U|re.DOTALL)
     _DocDateLine = re.compile(r'.*<DATELINE>(.*)</DATELINE>.*',re.I|re.M|re.U|re.DOTALL)
     _DocText = re.compile(r'.*<TEXT>(.*)</TEXT>.*',re.I|re.M|re.U|re.DOTALL)
     _DocSpace = re.compile(r"\s*",re.I|re.M)
+    _WeiboRemovedStr="抱歉，此微博"
+    _WeiboJuckStr="转发微博"
+    _WeiboHeaderStr ="消息内容"
+    _DocHTMLCHAR = re.compile(r"&.+;", re.M)
     @staticmethod
     def findAtsNames(rawStr):
         pass
@@ -36,15 +42,15 @@ class StrHelper:
         entitys = []
         for doc in docs:
             idStr,typeStr = StrHelper._DocHeader.match(doc).groups()
-            headLine = StrHelper._DocHeadLine.match(doc).groups()[0]
-            dateLine = StrHelper._DocDateLine.match(doc).groups()[0]
+            #headLine = StrHelper._DocHeadLine.match(doc).groups()[0]
+            #dateLine = StrHelper._DocDateLine.match(doc).groups()[0]
             text = StrHelper._DocText.match(doc).groups()[0].replace("<P>","").replace("</P>","")
             text = StrHelper._DocSpace.sub("",text)
             text = text.lstrip().rstrip()
-            headLine = StrHelper._DocSpace.sub("",headLine)
+            #headLine = StrHelper._DocSpace.sub("",headLine)
             tentity = DataClass.Entity(idStr,typeStr)
-            tentity.setHeadLine(headLine)
-            tentity.setDateLine(dateLine)
+            #tentity.setHeadLine(headLine)
+            #tentity.setDateLine(dateLine)
             tentity.setText(text)
             entitys.append(tentity)
         return entitys
@@ -55,7 +61,8 @@ class FileIO(object):
     CSVTYPE = "csv"
     OTHERTYPE = "otherType"
     
-    def readFileByPath(self,path,encodeType="utf-8",fileType=CSVTYPE,consern=(2,6,15)):
+    def readFileByPath(self,path,encodeType="utf-8",fileType=CSVTYPE,consern=(6,)):
+        lastLine = ""
         fileObj = codecs.open(path,'r', encodeType)
         if fileType == self.CSVTYPE:
             content = []
@@ -63,32 +70,42 @@ class FileIO(object):
                 lineArr = []
                 lines = line.split(",")
                 for index in consern:
-                    tempStr = StrHelper.removeFaceImage(StrHelper.removeLinks(lines[index]))
-                    tempStr = tempStr.replace("#","")
+                    if len(lines)<= index or lines[index].find(StrHelper._WeiboRemovedStr)!=-1 or lines[index].find(StrHelper._WeiboJuckStr)!=-1:
+                    #抱歉，此微博已被删除。
+                        #print("数组下标越界或有垃圾信息")
+                        break
+                    tempStr = StrHelper.removeLinks(lines[index])
+                    tempStr = StrHelper.removeFaceImage(tempStr)
+                    tempStr = tempStr.replace("#","").replace('"',"").replace("//@","").replace("@","").replace("【","").replace("】","")
                     tempStr = tempStr.lstrip().rstrip()
-                    if len(tempStr)!=0 and tempStr != "":
-                        lineArr.append(tempStr.encode(encodeType))
+                    tempStr = StrHelper._DocHiperLink.sub("",tempStr)
+                    tempStr = StrHelper._DocHTMLCHAR.sub("",tempStr)
+                    if len(tempStr)!=0 and tempStr != "" and tempStr !=" " and tempStr.find(StrHelper._WeiboHeaderStr)==-1:
+                        if lastLine != tempStr:
+                            lineArr.append(tempStr.encode(encodeType))
+                            lastLine = tempStr #去重
                 if len(lineArr)!=0:
                     content.append(lineArr)
-                    print lineArr[0]
             return content
         else:
             res = fileObj.readlines()
             return "".join(res).replace("\n", "").encode(encodeType)
-    
+        fileObj.close()
     """
     content is a list or a tuple
     """
     def writeData(self,path,fileName,content):
-        fileObj = open(path+fileName, "w")
+        fileObj = open(path+fileName, "a")
         for line in content:
             if isinstance(line, list):
                 for l in line:
-                    fileObj.write(str(l)+" ")
+                    fileObj.write(l.encode("utf-8")+" ")
             else:
-                fileObj.write(str(line))
+                fileObj.write(str(line).encode("utf-8"))
             fileObj.write("\n")
-        print("Write file"+fileName+"done!")
+        fileObj.flush()
+        fileObj.close()
+        print("Write file"+fileName+" done!")
     
     """
     get all the files of the first level 
@@ -102,3 +119,25 @@ class FileIO(object):
             if not os.path.isdir(rePath):
                 files.append(rePath)
         return files
+    @staticmethod
+    def getFileList(path,listf,typestr):
+        subFiles = os.listdir(path)
+        for p in subFiles:
+            curP = path+"/"+p
+            if os.path.isdir(curP):
+                FileIO.getFileList(curP,listf,typestr)
+            else:
+                if p.endswith(typestr):
+                    listf.append(curP)
+    @staticmethod
+    def getGzFiles(path):
+        listf = []
+        FileIO.getFileList(path,listf,".gz")
+        return listf
+    @staticmethod
+    def zipFile(path):
+        fileHandler = gzip.open(path, "rb", 9)
+        contents = fileHandler.readlines()
+        fileHandler.flush()
+        fileHandler.close()
+        return "".join(contents).replace("\n", "").encode("utf-8")
