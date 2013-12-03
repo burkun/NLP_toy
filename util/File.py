@@ -135,6 +135,14 @@ class FileIO(object):
         FileIO.getFileList(path,listf,".gz")
         return listf
     @staticmethod
+    def readProFile(path):
+        fileObj = codecs.open(path,'r', "utf-8")
+        res = []
+        for line in fileObj:
+            res.append(line.encode("utf-8"))
+        fileObj.close()
+        return res
+    @staticmethod
     def zipFile(path):
         fileHandler = gzip.open(path, "rb", 9)
         contents = fileHandler.readlines()

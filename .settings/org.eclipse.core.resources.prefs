@@ -1,4 +1,10 @@
 eclipse.preferences.version=1
+encoding//jieba/analyse/analyzer.py=utf-8
+encoding//test/test.py=utf-8
+encoding//test/test_change_dictpath.py=utf-8
+encoding//test/test_cut_for_search.py=utf-8
+encoding//test/test_pos.py=utf-8
+encoding//test/test_userdict.py=utf-8
 encoding//util/Config.py=utf-8
 encoding//util/DataClass.py=utf-8
 encoding//util/File.py=utf-8
