@@ -40,6 +40,7 @@ class StrHelper:
             dateLine = StrHelper._DocDateLine.match(doc).groups()[0]
             text = StrHelper._DocText.match(doc).groups()[0].replace("<P>","").replace("</P>","")
             text = StrHelper._DocSpace.sub("",text)
+            text = text.lstrip().rstrip()
             headLine = StrHelper._DocSpace.sub("",headLine)
             tentity = DataClass.Entity(idStr,typeStr)
             tentity.setHeadLine(headLine)
@@ -62,8 +63,14 @@ class FileIO(object):
                 lineArr = []
                 lines = line.split(",")
                 for index in consern:
-                    lineArr.append(StrHelper.removeFaceImage(StrHelper.removeLinks(lines[index])).encode(encodeType))
-                content.append(lineArr)
+                    tempStr = StrHelper.removeFaceImage(StrHelper.removeLinks(lines[index]))
+                    tempStr = tempStr.replace("#","")
+                    tempStr = tempStr.lstrip().rstrip()
+                    if len(tempStr)!=0 and tempStr != "":
+                        lineArr.append(tempStr.encode(encodeType))
+                if len(lineArr)!=0:
+                    content.append(lineArr)
+                    print lineArr[0]
             return content
         else:
             res = fileObj.readlines()
@@ -75,16 +82,23 @@ class FileIO(object):
     def writeData(self,path,fileName,content):
         fileObj = open(path+fileName, "w")
         for line in content:
-            fileObj.write(str(line)+"\n")
+            if isinstance(line, list):
+                for l in line:
+                    fileObj.write(str(l)+" ")
+            else:
+                fileObj.write(str(line))
+            fileObj.write("\n")
         print("Write file"+fileName+"done!")
     
     """
-    include dir and files
+    get all the files of the first level 
     """
     @staticmethod
     def getDirFiles(path):
         rawfiles = os.listdir(path)
         files = []
         for fileName in rawfiles: 
-            files.append(fileName)
+            rePath = path+fileName
+            if not os.path.isdir(rePath):
+                files.append(rePath)
         return files
